@@ -18,6 +18,10 @@ import logging
 import socket
 import schedule
 import concurrent.futures
+import csv
+from datetime import datetime
+import matplotlib.pyplot as plt
+import mpld3
 
 from flask import Flask, render_template, request, redirect
 
@@ -39,6 +43,7 @@ socketTimeout = 1 #socket timeout for port checks
 
 server_memory = []; #holds the data of the server status of all servers, before it gets written to the config file
 config_update_intervall = 30 #transfer data from memory to server_config.txt every X seconds
+server_log_folder = "server_logs" #where the log of each server (monitoring job) is stored
 
 thread_lock = threading.Lock()
 monitoring_queue_lock = threading.Lock()
@@ -167,8 +172,19 @@ def add_server(server_id, server, description, port):
         server_info = [server_id, server, description, "", "", port, ""]
         server_memory.append(server_info)
         print("Added new server", server)
+        create_server_log(server_id)
         logging.info("Added new server: %s", server)
         logging.info(server_memory)
+        
+def create_server_log(server_id):
+    try:
+        log_file = f"{server_id}_log.txt"
+    except:
+        print("Unable to create logfile for server %s", server_id)
+        logging.error("Unable to create logfile for server %s", server_id)
+        
+        
+    
 
 # Function to remove a server from the configuration file
 def remove_server(target_server):
@@ -292,12 +308,14 @@ def monitor_servers():
                         print("next step -> update memory")
                         #print("Port check done", port_results)
                         update_server_memory(server_info[1], ping_results[2], ping_results[1], port_result, server_info[5])
+                        write_to_server_log(server_info[0], port_result)
                     elif(server_info[5] == ""):#there is no port defined, just check for ping
                         print("Checking stuff without ports", server_info[1])
                         ping_results = ping_server(server_info[1])
                         print("ping results:", ping_results)
                         print("next step -> update memory")
                         update_server_memory(server_info[1], ping_results[2], ping_results[1], False, "")
+                        write_to_server_log(server_info[0], ping_results[0])
                     else:
                         print("Some unexpected monitoring behaviour with:", server_info[1])
                         logging.error("Some unexpected monitoring behaviour with: %s", server_info[1])
@@ -309,9 +327,51 @@ def monitor_servers():
                     print("Server allready in QUEUE, skipping:", server_info[1])
                     logging.info("Server allready in QUEUE, skipping: %s", server_info[1])
                     continue
+
+
+def generate_plot_html(server_id):
+    print("_-------------------------------------------- PLOTTING DATA")
+    # Example data
+    x = [1, 2, 3, 4, 5]
+    y = [2, 4, 6, 8, 10]
+
+    # Create the plot
+    fig, ax = plt.subplots()
+    ax.plot(x, y, marker='o')
+
+    # Convert the plot to HTML
+    html_fig = mpld3.fig_to_html(fig)
+
+    # Define the path for the HTML file
+    file_path = os.path.join(server_log_folder, f"{server_id}_plot.html")
+
+    # Save the HTML output to the specified server log folder
+    with open(file_path, 'w') as f:
+        f.write(html_fig)
+    print("_-------------------------------------------- PLOTTING DATA END")
                
-   
-                    
+def write_to_server_log(server_id, data):   
+    file_path = os.path.join(server_log_folder, server_id + "_log.txt")
+    print("writing to server LOG FILE OF:", file_path)
+    print(type(data))
+    if(isinstance(data, bool)): #if the data is for a PORT check
+        csv_data = [server_id, data, datetime.now()]
+        try:
+            with open(file_path, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(csv_data)
+        except:
+            print("problem writing to server log file")
+    '''else: #if its a PING check
+        csv_data = [server_id, data[0], datetime.now()]
+        try:
+            with open(file_path, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(csv_data)
+        except:
+            print("problem writing to server log file")'''
+        
+        
 
 def config_scheduler():
     print("config_scheduler...")
@@ -381,6 +441,7 @@ if __name__ == '__main__':
     
     config_scheduler_thread = threading.Thread(target=config_scheduler)
     config_scheduler_thread.start()
+    generate_plot_html(1)
     #monitor_servers()
 
     app.run(host='0.0.0.0', port=5000, debug=False)
