@@ -43,7 +43,7 @@ maximum_workers = 1 #how many workers for monitoring function, not sure this is 
 socketTimeout = 1 #socket timeout for port checks
 
 server_memory = []; #holds the data of the server status of all servers, before it gets written to the config file
-config_update_intervall = 30 #transfer data from memory to server_config.txt every X seconds
+config_update_intervall = 90 #transfer data from memory to server_config.txt every X seconds
 server_log_foldername = "server_logs"
 server_log_folder = "static/"+server_log_foldername #where the log of each server (monitoring job) is stored
 
@@ -275,35 +275,34 @@ def monitor_server_wrapper():
 def monitor_servers():
     monitoring_queue = []
     with monitoring_lock:
-        
+        #while True: was here.........
         print("monitor_server...")
-        while True:
-            for server_info in server_memory:
-                last_online = time.strftime('%Y-%m-%d %H:%M:%S')
-                if server_info[1] not in monitoring_queue:
-                    with monitoring_queue_lock:
-                        monitoring_queue.append(server_info[1])
-                    print("Monitoring Server:", server_info)
-                    logging.info("Monitoring Server: %s", server_info[1])
-                    
-                    if(server_info[5] != ""): #if there is a port set
-                        port_result = check_port(server_info[1], int(server_info[5]))
-                        ping_results = ping_server(server_info[1])
-                        update_server_memory(server_info[1], ping_results[2], ping_results[1], port_result, server_info[5])
-                        write_to_server_log(server_info[0], port_result)
-                    elif(server_info[5] == ""):#there is no port defined, just check for ping
-                        ping_results = ping_server(server_info[1])
-                        update_server_memory(server_info[1], ping_results[2], ping_results[1], False, "")
-                        write_to_server_log(server_info[0], ping_results[0])
-                    else:
-                        print("Some unexpected monitoring behaviour with:", server_info[1])
-                        logging.error("Some unexpected monitoring behaviour with: %s", server_info[1])
-            
-                    with monitoring_queue_lock:monitoring_queue.remove(server_info[1])  # Remove the server from the monitoring queue after checking
+        for server_info in server_memory:
+            last_online = time.strftime('%Y-%m-%d %H:%M:%S')
+            if server_info[1] not in monitoring_queue:
+                with monitoring_queue_lock:
+                    monitoring_queue.append(server_info[1])
+                print("Monitoring Server:", server_info)
+                logging.info("Monitoring Server: %s", server_info[1])
+                
+                if(server_info[5] != ""): #if there is a port set
+                    port_result = check_port(server_info[1], int(server_info[5]))
+                    ping_results = ping_server(server_info[1])
+                    update_server_memory(server_info[1], ping_results[2], ping_results[1], port_result, server_info[5])
+                    write_to_server_log(server_info[0], port_result)
+                elif(server_info[5] == ""):#there is no port defined, just check for ping
+                    ping_results = ping_server(server_info[1])
+                    update_server_memory(server_info[1], ping_results[2], ping_results[1], False, "")
+                    write_to_server_log(server_info[0], ping_results[0])
                 else:
-                    print("Server allready in QUEUE, skipping:", server_info[1])
-                    logging.info("Server allready in QUEUE, skipping: %s", server_info[1])
-                    continue
+                    print("Some unexpected monitoring behaviour with:", server_info[1])
+                    logging.error("Some unexpected monitoring behaviour with: %s", server_info[1])
+        
+                with monitoring_queue_lock:monitoring_queue.remove(server_info[1])  # Remove the server from the monitoring queue after checking
+            else:
+                print("Server allready in QUEUE, skipping:", server_info[1])
+                logging.info("Server allready in QUEUE, skipping: %s", server_info[1])
+                continue
 
 
 def generate_plot_html(server_id):
