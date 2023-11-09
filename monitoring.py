@@ -7,6 +7,7 @@
 # [] buttons in the view to reduce size of the gui to see more
 # [] status change in 24 hours, 7 days, 30 days...
 # [] server monitoring | input fields in 1 row, info in the next row
+# [] counter for changed status on the index html
  
 
 import os
@@ -330,14 +331,38 @@ def monitor_servers():
 
 
 def generate_plot_html(server_id):
+    dates = set()
     print("_-------------------------------------------- PLOTTING DATA")
-    # Example data
-    x = [1, 2, 3, 4, 5]
-    y = [2, 4, 6, 8, 10]
+    file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
+    print("_-------------------------------------------- PLOTTING DATA")
+                        
+    x_values = []
+    y_values = []
+
+ 
+    with open(file_path, mode='r', newline='') as file:
+        csv_reader = csv.reader(file)
+        for row in csv_reader:
+            date_str = row[2]  # Assuming the date is in the third column
+            date_obj = datetime.strptime(date_str, "%d/%m %H:%M:%S")  # Convert the string to a datetime object
+            x_values.append(date_obj)  # Append the datetime object to the list
+            y_values.append(row[1])
+            date = date_obj.date()  # Extract the date part only
+            dates.add(date)
+        num_days = len(dates)
+        print("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC ounted days:", num_days)
+
+    y_values_updated = [0 if val == 'True' else 1 for val in y_values]
 
     # Create the plot
     fig, ax = plt.subplots()
-    ax.plot(x, y, marker='o')
+    ax.plot(x_values, y_values_updated, marker='o')
+    
+    # Set the y-axis lower limit to 0
+    ax.set_ylim(bottom=0)
+
+    plt.gcf().autofmt_xdate()
+    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(num_days))  # Set the number of x-axis ticks
 
     # Convert the plot to HTML
     html_fig = mpld3.fig_to_html(fig)
@@ -351,25 +376,20 @@ def generate_plot_html(server_id):
     print("_-------------------------------------------- PLOTTING DATA END")
                
 def write_to_server_log(server_id, data):   
-    file_path = os.path.join(server_log_folder, server_id + "_log.txt")
+    file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
+    now = datetime.now()
+    formatted_date = now.strftime("%d/%m %H:%M:%S")
     print("writing to server LOG FILE OF:", file_path)
     print(type(data))
     if(isinstance(data, bool)): #if the data is for a PORT check
-        csv_data = [server_id, data, datetime.now()]
+        csv_data = [server_id, data, formatted_date]
         try:
             with open(file_path, 'a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(csv_data)
         except:
             print("problem writing to server log file")
-    '''else: #if its a PING check
-        csv_data = [server_id, data[0], datetime.now()]
-        try:
-            with open(file_path, 'a', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(csv_data)
-        except:
-            print("problem writing to server log file")'''
+
         
         
 
@@ -441,6 +461,7 @@ if __name__ == '__main__':
     
     config_scheduler_thread = threading.Thread(target=config_scheduler)
     config_scheduler_thread.start()
+    generate_plot_html(4)
     generate_plot_html(1)
     #monitor_servers()
 
