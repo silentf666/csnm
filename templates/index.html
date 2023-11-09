@@ -11,9 +11,9 @@
 </head>
 <body>
    <div class="container">
-        <h2>Server Monitoring</h2>
-        <div>Menu 1</div>
-        <div>Menu 2</div>
+        <h2><a href="/">Server Monitoring</a></h2>
+        <!--<div>Menu 1</div>
+        <div>Menu 2</div>-->
         <div>
             <form action="/add" method="post">
                 <label for="id" class="input-label">ID:</label>
@@ -59,7 +59,8 @@
                 <td>
                     <a href="/remove?server={{ item[0] }}"><i class="fas fa-trash-alt"></i></a> |
                     <a href="#" onclick="updateElement('{{ item[0] }}')"><i class="fa-regular fa-floppy-disk"></i></a> | 
-                    <a href="http://{{ item[1] }}:{{ item[5] }}" target="_blank"><i class="fa fa-link" aria-hidden="true"></i></a>
+                    <a href="http://{{ item[1] }}:{{ item[5] }}" target="_blank"><i class="fa fa-link" aria-hidden="true"></i></a> |
+                    <a href="/history?server={{ item[0] }}&description={{item[2]}}"><i class="fa-solid fa-file-waveform"></i></a>
                 </td>
             </tr>
             {% endfor %}

@@ -37,14 +37,16 @@ backup_file_prefix = "server_config_backup"
 #ping/check config
 MAX_PING_RETRY = 2 # 3 retrys before going to offline or Warning
 PING_RETRY_WAIT = 5 #amount of seconds before a retry takes place, if Ping is successfull within retry, STATUS = WARNING
-checkIntervall = 20 #check stuff every X seconds
+checkInterval = 60 #check stuff every X seconds
 maximum_workers = 1 #how many workers for monitoring function, not sure this is working
 
 socketTimeout = 1 #socket timeout for port checks
 
 server_memory = []; #holds the data of the server status of all servers, before it gets written to the config file
 config_update_intervall = 30 #transfer data from memory to server_config.txt every X seconds
-server_log_folder = "server_logs" #where the log of each server (monitoring job) is stored
+server_log_foldername = "server_logs"
+server_log_folder = "static/"+server_log_foldername #where the log of each server (monitoring job) is stored
+
 
 thread_lock = threading.Lock()
 monitoring_queue_lock = threading.Lock()
@@ -65,7 +67,7 @@ def create_server_status_memory():
             for line in lines:
                 server_info = line.strip().split(',')
                 server_memory.append(server_info)
-        print("server memory created", server_memory)
+        #print("server memory created", server_memory)
     
     
 def update_server_memory(target_server, last_online, new_status, port_check,port):
@@ -103,7 +105,7 @@ def update_server_memory(target_server, last_online, new_status, port_check,port
                 #print(server[1])
                 logging.info("Memory update done: %s", server[1])
                 print("memory update done:")
-                print(server_memory)
+                #print(server_memory)
 
 def view_update_server_memory(server_id, target_server, description, port):
     print("view_update_server_memory...")
@@ -212,26 +214,12 @@ def read_server_list():
             server_list.append(server_data)
     return server_list
 
-#updating the server entries in the list, ip, description and port for example
-'''def edit_server(server, new_value, config_file):
-    create_config_backup(config_file)  # Create a backup before editing the configuration file
-    print("EDIT SERVER FUNCTION ------------->");
-    with open(config_file, 'r') as file:
-        lines = file.readlines()
-    with open(config_file, 'w') as file:
-        for line in lines:
-            server_info = line.strip().split(',')
-            if server in server_info[0]:
-                updated_info = [new_value if new_value else server_info[0]] + [info for info in server_info[1:]]
-                file.write(','.join(updated_info) + '\n')
-            else:
-                file.write(line)
-'''
+
 # [] todo - should read data from server_memory and update this config file
 def update_server_config(server_info, last_online, ping_status, port_status):
     with thread_lock:        
         print("updating server config:")
-        print(server_info, last_online, status)
+        #print(server_info, last_online, status)
         
         with open("server_config.txt", "r") as file:
             lines = file.readlines()
@@ -295,34 +283,22 @@ def monitor_servers():
                 if server_info[1] not in monitoring_queue:
                     with monitoring_queue_lock:
                         monitoring_queue.append(server_info[1])
-                    print("Queue:",monitoring_queue)
                     print("Monitoring Server:", server_info)
-                    #logging.info("Monitoring Server: %s", server_info[1])
+                    logging.info("Monitoring Server: %s", server_info[1])
                     
                     if(server_info[5] != ""): #if there is a port set
-                        print(server_info[1], "port open:", server_info[5])
                         port_result = check_port(server_info[1], int(server_info[5]))
-                        print("port result:", port_result)
                         ping_results = ping_server(server_info[1])
-                        print("ping results:", ping_results)
-                                                
-                        print("next step -> update memory")
-                        #print("Port check done", port_results)
                         update_server_memory(server_info[1], ping_results[2], ping_results[1], port_result, server_info[5])
                         write_to_server_log(server_info[0], port_result)
                     elif(server_info[5] == ""):#there is no port defined, just check for ping
-                        print("Checking stuff without ports", server_info[1])
                         ping_results = ping_server(server_info[1])
-                        print("ping results:", ping_results)
-                        print("next step -> update memory")
                         update_server_memory(server_info[1], ping_results[2], ping_results[1], False, "")
                         write_to_server_log(server_info[0], ping_results[0])
                     else:
                         print("Some unexpected monitoring behaviour with:", server_info[1])
                         logging.error("Some unexpected monitoring behaviour with: %s", server_info[1])
-                        
-                    print("Monitoring Done:", server_info[1])
-                    print(monitoring_queue)
+            
                     with monitoring_queue_lock:monitoring_queue.remove(server_info[1])  # Remove the server from the monitoring queue after checking
                 else:
                     print("Server allready in QUEUE, skipping:", server_info[1])
@@ -332,9 +308,10 @@ def monitor_servers():
 
 def generate_plot_html(server_id):
     dates = set()
-    print("_-------------------------------------------- PLOTTING DATA")
+    print("Plotting data for Server ID:", server_id)
+    logging.info("Plotting data for Server ID: %s", server_id)
     file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
-    print("_-------------------------------------------- PLOTTING DATA")
+
                         
     x_values = []
     y_values = []
@@ -350,7 +327,8 @@ def generate_plot_html(server_id):
             date = date_obj.date()  # Extract the date part only
             dates.add(date)
         num_days = len(dates)
-        print("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC ounted days:", num_days)
+        #print("Counted days:", num_days)
+        #print("Values in x axis:", len(x_values))
 
     y_values_updated = [0 if val == 'True' else 1 for val in y_values]
 
@@ -373,7 +351,7 @@ def generate_plot_html(server_id):
     # Save the HTML output to the specified server log folder
     with open(file_path, 'w') as f:
         f.write(html_fig)
-    print("_-------------------------------------------- PLOTTING DATA END")
+    print("Plotting DONE")
                
 def write_to_server_log(server_id, data):   
     file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
@@ -423,6 +401,14 @@ def create_config_backup(config_file):
 @app.route('/')
 def home():
     return render_template('index.html', server_list=read_server_list()) 
+    
+@app.route('/history')
+def history():
+    server_id = request.args.get('server')
+    server_description = request.args.get('description')
+    generate_plot_html(server_id)
+    file_name = server_id + "_plot.html"
+    return render_template('history.html', server_id=server_id, server_description = server_description, file_name = file_name, folder = server_log_foldername)
         
 @app.route('/add', methods=['POST'])
 def add():
@@ -457,12 +443,9 @@ if __name__ == '__main__':
     
     # Start the monitoring process in a separate thread
     monitor_servers_thread = threading.Thread(target=monitor_server_wrapper)
-    monitor_servers_thread.start()
+    threading.Timer(checkInterval, monitor_servers).start()
     
     config_scheduler_thread = threading.Thread(target=config_scheduler)
     config_scheduler_thread.start()
-    generate_plot_html(4)
-    generate_plot_html(1)
-    #monitor_servers()
 
     app.run(host='0.0.0.0', port=5000, debug=False)
