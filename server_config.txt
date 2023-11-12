@@ -1,9 +1,9 @@
-1,192.168.0.50,Raspberry pi SSH,2023-11-08 06:40:53,Online,22,Online,
-2,192.168.0.242,Esxi,2023-11-08 06:40:53,Online,,,
-3,192.168.0.1,Local Gateway,2023-11-08 06:40:53,Online,,,
-4,192.168.0.150,HP printer,,Offline,,,
-5,192.168.0.56,Smartphone,2023-11-08 06:40:53,Online,,,
-6,8.8.8.8,Google,2023-11-08 06:40:53,Online,,
-7,192.168.0.50,raspb,2023-11-08 06:40:53,Online,5000,Online
-8,192.168.0.50,Dashy,2023-11-08 06:40:53,Online,666,Online
-9,google.com,Google web,2023-11-08 06:40:53,Online,80,Online
+1,192.168.0.50,adf,2023-11-12 09:01:52,Online,22,Online,
+2,192.168.0.242,Esxi,2023-11-12 09:01:52,Online,,,
+3,192.168.0.1,Local Gateway,2023-11-12 09:01:52,Online,,,
+4,192.168.0.150,HP Drucker Büro,,Offline,,,
+5,192.168.0.56,Smartphone,2023-11-12 09:02:03,Online,,,
+6,8.8.8.8,Google,2023-11-12 09:02:03,Online,,
+7,192.168.0.50,raspb dashy,2023-11-12 09:02:03,Online,666,Online
+8,192.168.0.50,Monitoring,2023-11-12 09:02:03,Online,5000,Online
+9,google.com,Google Web,2023-11-12 09:02:03,Online,80,Online
