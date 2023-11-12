@@ -8,12 +8,37 @@
     <title>Home Server Monitor</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <script>
+        function updateElement(id) {
+        const row = document.getElementById(id);
+        const server = row.cells[1].innerText;
+        const description = row.cells[2].innerText;
+        const lastOnline = row.cells[3].innerText;
+        const status = row.cells[4].innerText;
+        const port = row.cells[5].innerText;
+
+        const data = {
+            id: id,
+            server: server,
+            description: description,
+            last_online: lastOnline,
+            status: status,
+            port: port
+        };
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/edit', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify(data));
+    }
+    </script>
 </head>
 <body>
    <div class="container">
-        <h2>Server Monitoring</h2>
-        <div>Menu 1</div>
-        <div>Menu 2</div>
+        <h2><a href="/">Server Monitoring</a></h2>
+        <!--<div>Menu 1</div>
+        <div>Menu 2</div>-->
         <div>
             <form action="/add" method="post">
                 <label for="id" class="input-label">ID:</label>
@@ -59,7 +84,8 @@
                 <td>
                     <a href="/remove?server={{ item[0] }}"><i class="fas fa-trash-alt"></i></a> |
                     <a href="#" onclick="updateElement('{{ item[0] }}')"><i class="fa-regular fa-floppy-disk"></i></a> | 
-                    <a href="http://{{ item[1] }}:{{ item[5] }}" target="_blank"><i class="fa fa-link" aria-hidden="true"></i></a>
+                    <a href="http://{{ item[1] }}:{{ item[5] }}" target="_blank"><i class="fa fa-link" aria-hidden="true"></i></a> |
+                    <a href="/history?server={{ item[0] }}&description={{item[2]}}" target="_blank"><i class="fa-solid fa-file-waveform"></i></a>
                 </td>
             </tr>
             {% endfor %}
