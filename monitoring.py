@@ -77,7 +77,22 @@ def create_server_status_memory():
                 server_info = line.strip().split(',')
                 server_memory.append(server_info)
         #print("server memory created", server_memory)
+
+            
+def check_server_config_file(config_file):
+    try:
+        with open(config_file, 'r') as file:
+            print("config file exists")
+    except:
+        print("no config file")
+        server_memory = [1, "localhost", "localhost","","","","","",]
+        with open(config_file, 'w') as file:
+            file.write(','.join(map(str, server_memory)))
+            print("writing ...")
+        print("New config file created.")
     
+
+        
     
 def update_server_memory(target_server, last_online, new_status, port_check,port):
     #print("update_server_memory...")
@@ -106,7 +121,6 @@ def update_server_memory(target_server, last_online, new_status, port_check,port
                 else:
                     server[4] = "unknown status"
                 logging.info("Memory update done: %s", server[1])
-                print("memory update done:"
 
 def view_update_server_memory(server_id, target_server, description, port):
     print("view_update_server_memory...")
@@ -494,6 +508,7 @@ def custom_static(filename):
 
 
 if __name__ == '__main__':
+    check_server_config_file(config_file)
     config_file = "server_config.txt"
     create_server_status_memory()  
     
