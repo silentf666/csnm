@@ -16,3 +16,8 @@ Overview:
 Status History:
 ![csnm2](https://github.com/silentf666/csnm/assets/19639608/c0118fd9-ca40-45b6-a226-aeeaffbbef4b)
 
+Setup:
+- Install python3
+- Run "python3 monitoring.py"
+- Browse to your http://server-ip:5000
+- Consider setting up as a service or put it in autostart.
