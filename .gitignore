@@ -35,3 +35,11 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# custom paths
+###############
+server_config.txt
+config_backups/*.txt
+static/server_logs/*.html
+static/server_logs/*.txt
+static/server_logs/*.svg

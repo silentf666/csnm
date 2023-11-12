@@ -1,13 +1,18 @@
 #Todos:
 # [] add count down on index to see when page is refreshing
 # [] refresh page when server is added or edited
-# [] url out of ip:port
+# [x] url out of ip:port
 # [] delte log when x days old or x size
-# [] add every occuring change in status to a single file or better every server gets its own file
+# [x] add every occuring change in status to a single file or better every server gets its own file
 # [] buttons in the view to reduce size of the gui to see more
 # [] status change in 24 hours, 7 days, 30 days...
-# [] server monitoring | input fields in 1 row, info in the next row
+# [x] server monitoring | input fields in 1 row, info in the next row
 # [] counter for changed status on the index html
+# [] garbage manager function -> deleting old or big log files
+# [] scheduler function -> keeping an eye on the monitor_servers function
+# [] settings page to modify all the important variables
+# [] <hr> line for each new day in status list.html
+# [] directly update index view when server is added / edited
  
 
 import os
@@ -22,15 +27,19 @@ import concurrent.futures
 import csv
 from datetime import datetime
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
+import matplotlib.dates as mdates
 import mpld3
 
-from flask import Flask, render_template, request, redirect
+
+from flask import Flask, render_template, request, redirect, send_from_directory
 
 app = Flask(__name__)
 
 # Add logging configuration
 logging.basicConfig(filename='logfile.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S') 
 #Backup config 
+config_file = "server_config.txt"
 MAX_BACKUP_FILES = 10 #before every edit, a backup file is created. How many changes?
 backup_folder = "config_backups"
 backup_file_prefix = "server_config_backup"
@@ -71,41 +80,33 @@ def create_server_status_memory():
     
     
 def update_server_memory(target_server, last_online, new_status, port_check,port):
-    print("update_server_memory...")
+    #print("update_server_memory...")
     global server_memory
     with thread_lock:
         for server in server_memory: # server memory holds all servers and different status 
             if server[1] == target_server and server[5] == port: #if the loop reaches the server to update
                 print("Update_server_memory...", server[1])
                 if(port_check == True):
-                    print("checkpoint 1")
                     server[3] = last_online
                     server[4] = new_status
                     server[6] = "Online"
                     server[5] = port
                 elif(port_check == False and port != ""): #if the server entry has a port but is not open
-                    print("checkpoint 2")
                     server[3] = last_online
                     server[4] = new_status
                     server[6] = "Offline"
                     server[5] = port
                 elif(port_check == False and port == ""): #if no port is set for the server (means ping only)
-                    print("checkpoint 3")
                     server[3] = last_online
                     server[4] = new_status
                     server[6] = ""
                     server[5] = ""
-                elif(server[3] == "" and new_status == "offline"):
-                    print("checkpoint 4")   #when no last online status is available and its still offline                        
+                elif(server[3] == "" and new_status == "offline"): #when no last online status is available and its still offline                        
                     server[4] = new_status
                 else:
-                    print("checkpoint 5")
                     server[4] = "unknown status"
-                #print("_-----------MEMORY UPDATE----------_")
-                #print(server[1])
                 logging.info("Memory update done: %s", server[1])
-                print("memory update done:")
-                #print(server_memory)
+                print("memory update done:"
 
 def view_update_server_memory(server_id, target_server, description, port):
     print("view_update_server_memory...")
@@ -178,6 +179,7 @@ def add_server(server_id, server, description, port):
         create_server_log(server_id)
         logging.info("Added new server: %s", server)
         logging.info(server_memory)
+        create_config_backup()
         
 def create_server_log(server_id):
     try:
@@ -243,6 +245,7 @@ def update_server_config(server_info, last_online, ping_status, port_status):
         if file_size < 10:
             logging.error("!!! ERROR ??? !!!")
             logging.error('File size less than 10 bytes: %s bytes', file_size)
+    create_config_backup()
 
 # takes all data stored in the server_memory and updates the server_config.txt            
 def update_all_server_config():
@@ -275,7 +278,6 @@ def monitor_server_wrapper():
 def monitor_servers():
     monitoring_queue = []
     with monitoring_lock:
-        #while True: was here.........
         print("monitor_server...")
         for server_info in server_memory:
             last_online = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -300,14 +302,16 @@ def monitor_servers():
         
                 with monitoring_queue_lock:monitoring_queue.remove(server_info[1])  # Remove the server from the monitoring queue after checking
             else:
-                print("Server allready in QUEUE, skipping:", server_info[1])
                 logging.info("Server allready in QUEUE, skipping: %s", server_info[1])
                 continue
+        print("### all servers checked ###")
+        logging.info("### all servers checked ###")
+        threading.Timer(checkInterval, monitor_servers).start()
 
 
 def generate_plot_html(server_id):
+    day_color = 'green'
     dates = set()
-    print("Plotting data for Server ID:", server_id)
     logging.info("Plotting data for Server ID: %s", server_id)
     file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
 
@@ -320,7 +324,7 @@ def generate_plot_html(server_id):
         csv_reader = csv.reader(file)
         for row in csv_reader:
             date_str = row[2]  # Assuming the date is in the third column
-            date_obj = datetime.strptime(date_str, "%d/%m %H:%M:%S")  # Convert the string to a datetime object
+            date_obj = datetime.strptime(date_str, "%d/%m/%y %H:%M:%S")  # Convert the string to a datetime object
             x_values.append(date_obj)  # Append the datetime object to the list
             y_values.append(row[1])
             date = date_obj.date()  # Extract the date part only
@@ -330,34 +334,71 @@ def generate_plot_html(server_id):
         #print("Values in x axis:", len(x_values))
 
     y_values_updated = [0 if val == 'True' else 1 for val in y_values]
+    
 
     # Create the plot
-    fig, ax = plt.subplots()
+    plt.figure(figsize=(15,6))
+    fig, ax = plt.subplots(figsize=(15,6))
     ax.plot(x_values, y_values_updated, marker='o')
     
     # Set the y-axis lower limit to 0
     ax.set_ylim(bottom=0)
-
+    
+    # Set y-axis ticks and labels
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["Online", "Offline"])
+    
     plt.gcf().autofmt_xdate()
     plt.gca().xaxis.set_major_locator(plt.MaxNLocator(num_days))  # Set the number of x-axis ticks
+    fig.canvas.draw()
+    file_path = os.path.join(server_log_folder, f"{server_id}_plot.svg")
+    fig.savefig(file_path)
+    mpld3.save_html(fig, os.path.join(server_log_folder, f"{server_id}_plot.html"))
+    
+def generate_full_status_list(server_id):
+    print("generating full status list for server:", server_id)
+    try:
+        file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
+    except:
+        print("problem with filepath")
+    
+    def get_status(status):
+        if status == "False":
+            return "offline"
+        elif status == "True":
+            return "online"
+        elif status == "warning":
+            return "warning"
+        else:
+            return ""
 
-    # Convert the plot to HTML
-    html_fig = mpld3.fig_to_html(fig)
+    with open(file_path, mode='r', newline='') as file:
+        csv_reader = csv.reader(file)
+        
+        # Prepare data for rendering
+        data = []
+        for row in csv_reader:
+            # Use a list to store row data
+            row_data = []
+            
+            # Access elements by index and convert if needed
+            date = row[2]
+            status = get_status(row[1])
+            
+            # Append elements to the row_data list
+            row_data.append(date)
+            row_data.append(status)
+            
+            # Append the row_data list to the data list
+            data.append(row_data)
+    return data
 
-    # Define the path for the HTML file
-    file_path = os.path.join(server_log_folder, f"{server_id}_plot.html")
-
-    # Save the HTML output to the specified server log folder
-    with open(file_path, 'w') as f:
-        f.write(html_fig)
-    print("Plotting DONE")
                
 def write_to_server_log(server_id, data):   
     file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
     now = datetime.now()
-    formatted_date = now.strftime("%d/%m %H:%M:%S")
+    formatted_date = now.strftime("%d/%m/%y %H:%M:%S")
     print("writing to server LOG FILE OF:", file_path)
-    print(type(data))
     if(isinstance(data, bool)): #if the data is for a PORT check
         csv_data = [server_id, data, formatted_date]
         try:
@@ -367,9 +408,6 @@ def write_to_server_log(server_id, data):
         except:
             print("problem writing to server log file")
 
-        
-        
-
 def config_scheduler():
     print("config_scheduler...")
     schedule.every(config_update_intervall).seconds.do(update_all_server_config)
@@ -377,7 +415,7 @@ def config_scheduler():
         schedule.run_pending()
         time.sleep(1)
 
-def create_config_backup(config_file):
+def create_config_backup():
     if not os.path.exists(backup_folder):
         os.mkdir(backup_folder)
 
@@ -396,6 +434,7 @@ def create_config_backup(config_file):
 
     backup_file = os.path.join(backup_folder, new_backup_name)
     shutil.copy2(config_file, backup_file)
+    print("config backup created")
 
 @app.route('/')
 def home():
@@ -406,8 +445,17 @@ def history():
     server_id = request.args.get('server')
     server_description = request.args.get('description')
     generate_plot_html(server_id)
-    file_name = server_id + "_plot.html"
-    return render_template('history.html', server_id=server_id, server_description = server_description, file_name = file_name, folder = server_log_foldername)
+    file_name = server_id + "_plot.svg"
+    file_name_html = server_id + "_plot.html"
+    return render_template('history.html', server_id=server_id, server_description = server_description, file_name = file_name, folder = server_log_foldername, file_name_html = file_name_html)
+    
+    
+@app.route('/history_status_list')
+def history_status_list():
+    server_id = request.args.get('server')
+    server_description = request.args.get('description')
+    full_status_list = generate_full_status_list(server_id)
+    return render_template('status_list.html', server_id=server_id, server_description = server_description, data = full_status_list )
         
 @app.route('/add', methods=['POST'])
 def add():
@@ -429,11 +477,20 @@ def remove():
 @app.route('/edit', methods=['POST'])
 def edit():
     data = json.loads(request.data)
-    print("POST request DATA for server ID:", data['id'])
-    print(data)
     view_update_server_memory(data['id'], data['server'], data['description'], data['port'])
+    create_config_backup()
     return redirect("/")
 
+@app.route('/static/server_logs/<path:filename>')
+def custom_static(filename):
+    response = send_from_directory('static/server_logs', filename)
+
+    # Set cache headers to prevent caching
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+
+    return response
 
 
 if __name__ == '__main__':

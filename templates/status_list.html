@@ -6,7 +6,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home Server Monitor</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style_status_list.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
@@ -17,16 +17,25 @@
     </div>
     
     
-    <div class="history-container">
+    <div class="server_status_list">
         <h1>Server History</h1>
         <h2>History for Server ID: {{ server_id }} - {{server_description}}</h2>
-        <p class="info-text"> 0 = online, 1 = offline</p>
-        <div style="text-align:center;">
-                <iframe src="{{ url_for('custom_static', filename=file_name) }}" width="100%" height="600" frameborder="0"></iframe>
-                <a href="{{ url_for('custom_static', filename=file_name_html) }}" target="_blank">Dynamic html view</a>
-                <a href="/history_status_list?server={{ server_id }}&description={{server_description}}">Status List view</a>
-        </div>
-    </div>
+        <h2>Status List</h2>
+         <table>
+            <tr>
+                <th>Date</th>
+                <th>Status</th>
+            </tr>
+
+            {% for row in data %}
+                <tr class="{% if row[1] == 'online' %}online{% elif row[1] == 'offline' %}offline{% elif row[1] == 'Warning' %}warning{% endif %}">
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[1] }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+        
+    </div> 
     
 </body>
 
