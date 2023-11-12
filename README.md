@@ -18,6 +18,7 @@ Status History:
 
 Setup:
 - Install python3
+- Clone this repo
 - Run "python3 monitoring.py"
 - Browse to your http://server-ip:5000
 - Consider setting up as a service or put it in autostart.
