@@ -194,6 +194,7 @@ def add_server(server_id, server, description, port):
         logging.info("Added new server: %s", server)
         logging.info(server_memory)
         create_config_backup()
+       
         
 def create_server_log(server_id):
     try:
@@ -480,12 +481,14 @@ def add():
     if not port:
         port = ""
     add_server(server_id, server, description, port)
+    update_all_server_config()
     return redirect("/")
 
 @app.route('/remove', methods=['GET'])
 def remove():
     server = request.args.get('server')
     remove_server(server)
+    update_all_server_config()
     return redirect("/")
 
 @app.route('/edit', methods=['POST'])
