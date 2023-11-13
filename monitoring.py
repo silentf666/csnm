@@ -1,18 +1,21 @@
 #Todos:
 # [] add count down on index to see when page is refreshing
-# [] refresh page when server is added or edited
+# [x] refresh page when server is added or edited
 # [x] url out of ip:port
-# [] delte log when x days old or x size
+# [x] !delete log when x days old
 # [x] add every occuring change in status to a single file or better every server gets its own file
 # [] buttons in the view to reduce size of the gui to see more
-# [] status change in 24 hours, 7 days, 30 days...
+# [] notable status changes in 24 hours, 7 days, 30 days...
 # [x] server monitoring | input fields in 1 row, info in the next row
 # [] counter for changed status on the index html
-# [] garbage manager function -> deleting old or big log files
+# [x] garbage manager function -> deleting old or big log files. ok for now.
 # [] scheduler function -> keeping an eye on the monitor_servers function
-# [] settings page to modify all the important variables
-# [] <hr> line for each new day in status list.html
-# [] directly update index view when server is added / edited
+# [] Add a settings page to modify all the important variables
+# [] <hr> line for each new day in status_list.html
+# [x] directly update index view when server is added / edited
+# [] "check now" button to trigger ping and port checks
+# []  status list view: make each day "collapsable"?
+# [] ping retry - rework needed so 0 would be no retry but its 1)
  
 
 import os
@@ -25,7 +28,7 @@ import socket
 import schedule
 import concurrent.futures
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib.dates import DateFormatter
 import matplotlib.dates as mdates
@@ -36,30 +39,37 @@ from flask import Flask, render_template, request, redirect, send_from_directory
 
 app = Flask(__name__)
 
-# Add logging configuration
-logging.basicConfig(filename='logfile.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S') 
-#Backup config 
-config_file = "server_config.txt"
-MAX_BACKUP_FILES = 10 #before every edit, a backup file is created. How many changes?
-backup_folder = "config_backups"
-backup_file_prefix = "server_config_backup"
-#ping/check config
-MAX_PING_RETRY = 2 # 3 retrys before going to offline or Warning
-PING_RETRY_WAIT = 5 #amount of seconds before a retry takes place, if Ping is successfull within retry, STATUS = WARNING
-checkInterval = 60 #check stuff every X seconds
-maximum_workers = 1 #how many workers for monitoring function, not sure this is working
 
-socketTimeout = 1 #socket timeout for port checks
-
-server_memory = []; #holds the data of the server status of all servers, before it gets written to the config file
-config_update_intervall = 90 #transfer data from memory to server_config.txt every X seconds
-server_log_foldername = "server_logs"
-server_log_folder = "static/"+server_log_foldername #where the log of each server (monitoring job) is stored
-
-
+logging.basicConfig(filename='logfile.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%d-%m-%Y %H:%M:%S') 
 thread_lock = threading.Lock()
 monitoring_queue_lock = threading.Lock()
 monitoring_lock = threading.Lock()
+server_memory = []; #holds the data of the server status of all servers, before it gets written to the config file
+
+###################################################### CONFIG SECTION ################################################################
+###Backup config 
+MAX_BACKUP_FILES = 10 #before every edit, a backup file is created. How many changes?
+config_file = "server_config.txt" #should not be changed
+backup_folder = "config_backups" #should not be changed
+backup_file_prefix = "server_config_backup" #should not be changed
+###ping/check config
+MAX_PING_RETRY = 2 # 3 retrys before going to offline or Warning. Counting from 0,1,2... (rework needed so 0 would be no retry but its 1)
+PING_RETRY_WAIT = 5 #amount of seconds before a retry takes place, if Ping is successfull within retry, STATUS = WARNING
+checkInterval = 60 #check ping and ports every X seconds
+###threading config
+maximum_workers = 1 #how many workers for monitoring function, not sure this is working
+###telnet/port config
+socketTimeout = 1 #socket timeout for port checks
+
+
+config_update_intervall = 90 #transfer data from memory to server_config.txt every X seconds
+server_log_foldername = "server_logs"
+server_log_folder = "static/"+server_log_foldername #where the log of each server (monitoring job) is stored
+log_file_age_days = 30 #how many days you want to keep the log files before its automatically deleted
+log_cleanup_interval_days = 1 # clean up the log every x days
+######################################################## CONFIG SECTION END ############################################################
+
+
 
 
 
@@ -146,7 +156,7 @@ def ping_server(server_info):
     response = os.system("ping -c 1 " + server_info)
     if response == 0:
         status = "Online"
-        last_online = time.strftime('%Y-%m-%d %H:%M:%S')
+        last_online = time.strftime('%d-%m-%Y %H:%M:%S')
         print("ping OK", status, last_online)
         return True, status, last_online
         
@@ -159,7 +169,7 @@ def ping_server(server_info):
             if response == 0:
                 logging.warning("Server %s has responded after retry", server_info)
                 status = "Warning"
-                last_online = time.strftime('%Y-%m-%d %H:%M:%S')
+                last_online = time.strftime('%d-%m-%Y %H:%M:%S')
                 return True, status, last_online
             else:
                 status = "Offline"
@@ -295,7 +305,7 @@ def monitor_servers():
     with monitoring_lock:
         print("monitor_server...")
         for server_info in server_memory:
-            last_online = time.strftime('%Y-%m-%d %H:%M:%S')
+            last_online = time.strftime('%d-%m-%Y %H:%M:%S')
             if server_info[1] not in monitoring_queue:
                 with monitoring_queue_lock:
                     monitoring_queue.append(server_info[1])
@@ -422,10 +432,94 @@ def write_to_server_log(server_id, data):
                 writer.writerow(csv_data)
         except:
             print("problem writing to server log file")
+            
+def log_cleanup():
+    check_and_delete_log_files() #delete logs from server ids not in the server_config anymore
+    def parse_date(date_str):
+        return datetime.strptime(date_str.strip(), "%d/%m/%y %H:%M:%S")
+    
+    def delete_old_entries(file_path):
+        print("Logfile cleanup:", file_path)
+        logging.info("Logfile cleanup %s", file_path)
+    # Calculate the date 30 days ago
+        days_ago = datetime.now() - timedelta(days=log_file_age_days)
+
+        # Read all lines from the file
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+
+        # Filter lines to keep only those not older than 30 days
+        filtered_lines = [line for line in lines if parse_date(line.split(',')[2]) >= days_ago]
+
+        # Write the filtered lines back to the file
+        with open(file_path, 'w') as file:
+            file.writelines(filtered_lines)
+        print("Logfiles cleanup done...")
+        logging.info("Logfiles cleanup done...")
+    
+    #first get all the server ids, then loop through the files and 
+    server_ids = get_server_ids()
+    for server_id in server_ids:
+        file_path = os.path.join(server_log_folder, f"{server_id}_log.txt")
+        if os.path.exists(file_path):
+            delete_old_entries(file_path)
+        else:
+            logging.error("Old log exist, which should not %s", file_path) 
+    
+    
+
+def get_server_ids(): #get all the server IDs from the backup_logs files
+    server_ids = []
+
+    # Loop through all files in the folder
+    for filename in os.listdir(server_log_folder):
+        # Check if the file is a .txt file
+        if filename.endswith('.txt'):
+            # Extract the server ID from the filename
+            server_id = filename.split('_')[0]
+
+            # Add the server ID to the list if it's not already present
+            if server_id not in server_ids:
+                server_ids.append(server_id)
+
+    return server_ids
+
+#deletes all log files of servers which are not in the server_config anymore
+#gets called when the log_cleanup function is called
+def check_and_delete_log_files(): 
+    # Get the list of server IDs from log files
+    log_server_ids = get_server_ids()
+
+    # Read the server IDs from the server_config.txt file
+    with open('server_config.txt', 'r') as config_file:
+        config_lines = config_file.readlines()
+
+    # Extract server IDs from the server_config.txt file
+    config_server_ids = [line.split(',')[0] for line in config_lines]
+
+    # Identify the log files to delete
+    files_to_delete = [f"{server_id}_log.txt" for server_id in log_server_ids if server_id not in config_server_ids]
+
+    # Delete the identified log files
+    for file_to_delete in files_to_delete:
+        print("Logfile deleted:", file_to_delete)
+        logging.info("Logfile deleted: %s", file_to_delete)
+        file_path = os.path.join(server_log_folder, file_to_delete)
+        os.remove(file_path)
+        print(f"Deleted log file: {file_path}")
+
+            
 
 def config_scheduler():
     print("config_scheduler...")
     schedule.every(config_update_intervall).seconds.do(update_all_server_config)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+def log_garbage_manager():
+    print("checking for old logs to delete")
+    schedule.every(log_cleanup_interval_days).day.at("00:00").do(log_cleanup)
     while True:
         schedule.run_pending()
         time.sleep(1)
@@ -512,7 +606,7 @@ def custom_static(filename):
 
 if __name__ == '__main__':
     check_server_config_file(config_file)
-    config_file = "server_config.txt"
+    #config_file = "server_config.txt"
     create_server_status_memory()  
     
     # Start the monitoring process in a separate thread
@@ -521,5 +615,8 @@ if __name__ == '__main__':
     
     config_scheduler_thread = threading.Thread(target=config_scheduler)
     config_scheduler_thread.start()
+    
+    log_garbage_manager_thread = threading.Thread(target=log_garbage_manager)
+    log_garbage_manager_thread.start()
 
     app.run(host='0.0.0.0', port=5000, debug=False)
